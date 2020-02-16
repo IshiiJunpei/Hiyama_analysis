@@ -1,0 +1,262 @@
+---
+title: "檜山地域概況"
+author: "明日晴れるかな"
+data: "2019年7月18日"
+documentclass: ltjarticle
+output: html_document
+---
+
+
+```{r warning=FALSE,error=FALSE,echo=FALSE}
+# パッケージ読み込み
+library(tidyverse)
+library(ggthemes)
+library(knitr)
+library(rmarkdown)
+library(viridis)
+library(sf)
+library(plotly)
+```
+
+```{r warning=FALSE,include=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=6}
+# データ読み込み
+# shapeファイル名を取得
+shp <- list.files(path="../01data/smal_area/", pattern=".*\\.shp", full.names=T) 
+# 最初のsfオブジェクト作成
+sa <- st_read(shp[1])
+# for文でshpのファイル名を順番に読み込む
+for(i in 1:length(shp)) {
+  shp_a <- st_read(shp[i])
+  sa <- rbind(sa ,shp_a)
+}
+sa$KEY_CODE <- sa$KEY_CODE %>%
+  as.character() %>%
+  as.integer() %>%
+  formatC(width=10,flag="0") %>%
+  as.character()
+sa$S_NAME <- as.character(sa$S_NAME)
+
+# 産業別就業者
+sangyo <- read.csv("../01data/sangyo/tblT000865C01.csv" , fileEncoding = "shift-jis")
+sangyo$KEY_CODE <- sangyo$KEY_CODE %>%
+  as.character() %>%
+  as.integer() %>%
+  formatC(width=10,flag="0")
+# 数値をnumericに変換
+for(i in 8:ncol(sangyo) ){
+sangyo[,i] <- as.numeric( as.character( sangyo[,i] ) )
+}
+# 産業別就業者データを結合 
+sa <- left_join(sa , sangyo ,by="KEY_CODE")
+
+# 国勢調査データ読み込み
+age2000 <- read.csv("../01data/kokusei_jinko/jinko2000.csv" , fileEncoding = "shift-jis")
+age2005 <- read.csv("../01data/kokusei_jinko/jinko2005.csv" , fileEncoding = "shift-jis")
+age2015 <- read.csv("../01data/kokusei_jinko/jinko2015.csv" , fileEncoding = "shift-jis")
+#列名を変更して絞り込み
+# 2000年
+age2000a<- age2000 %>%
+  rename(人口00年=総数.年齢.不詳.含む,
+  	u15_00=総数１５歳未満,o15u65_00=総数１５.６４歳,
+  	o65_00=総数６５歳以上,o65u75_00=総数６５.７４歳,
+  	o75_00=総数７５歳以上)	%>%
+	select(KEY_CODE,NAME,人口00年,u15_00,o15u65_00,o65_00,o65u75_00,o75_00)	
+#
+for(i in 3:ncol(age2000a) ){
+age2000a[,i] <- as.numeric( as.character( age2000a[,i] ) )
+}
+#2005年
+age2005a<- age2005 %>%
+  rename(人口05年=総数.年齢.不詳.含む,
+  	u15_05=総数１５歳未満,o15u65_05=総数１５.６４歳,
+  	o65_05=総数６５歳以上,o65u75_05=総数６５.７４歳,
+  	o75_05=総数７５歳以上)	%>%
+	select(KEY_CODE,NAME,人口05年,u15_05,o15u65_05,o65_05,o65u75_05,o75_05)	
+#
+for(i in 3:ncol(age2005a) ){
+age2005a[,i] <- as.numeric( as.character( age2005a[,i] ) )
+}
+#2015年
+age2015a <- age2015 %>% 
+  rename(人口15年=総数.年齢.不詳.含む,
+  	u15_15=X.総数１５歳未満,o15u65_15=X.総数１５.６４歳,
+  	o65_15=X.総数６５歳以上,o75_15=X.総数７５歳以上)	%>%
+	select(KEY_CODE,NAME,人口15年,u15_15,o15u65_15,o65_15,o75_15)	
+#
+for(i in 3:ncol(age2015a)){
+age2015a[,i]<- as.numeric( as.character( age2015a[,i] ) )
+}
+# 年齢データ結合
+age2000a$NAME <- as.character(age2000a$NAME)
+age2005a$NAME <- as.character(age2005a$NAME)
+age2015a$NAME <- as.character(age2015a$NAME)
+#
+age2000a$KEY_CODE <- age2000a$KEY_CODE %>%
+  as.integer() %>%
+  formatC(width=10,flag="0") %>%
+  as.character()
+age2005a$KEY_CODE <- age2005a$KEY_CODE %>%
+  as.integer() %>%
+  formatC(width=10,flag="0") %>%
+  as.character()
+age2015a$KEY_CODE <- age2015a$KEY_CODE %>%
+  as.integer() %>%
+  formatC(width=10,flag="0") %>%
+  as.character()
+
+# 地図データと結合
+sa <- left_join( sa , age2000a , by = "KEY_CODE" ) 
+sa <- left_join( sa , age2005a , by = "KEY_CODE" ) 
+sa <- left_join( sa , age2015a , by = "KEY_CODE" ) 
+
+# 厚沢部エリアを抽出
+asb <- sa %>% filter(CITY_NAME == "厚沢部町")
+asbu <- st_union(asb)
+```
+
+# 人口構成
+
+## 2005年から2015年の人口変化
+
+道南全域で人口減少が進む。厚沢部町内でも平均0.8前後の減少率となっている。近隣では柳崎のみが1.38の増加となっている。
+
+```{r warning=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=10}
+sa %>%
+  ggplot() +
+    geom_sf( aes(fill = 人口15年/人口05年 )  , size = 0.1 ) +
+    geom_sf(data=asbu , size = 0.2 , colour = "white" , fill = NA ) +
+    theme_map() +
+    scale_fill_viridis(,name = "人口変化率" ,limits = c(0.2 , 1.5) ) -> p
+ggplotly(p)
+```
+
+道南全体の人口変化率の中央値は`median(sa$人口15年/sa$人口05年, na.rm=TRUE)`で道南全体で人口減少が進む。
+
+```{r warning=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=4}
+sa %>%
+  ggplot() +
+    geom_histogram( aes( 人口15年/人口05年) ) +
+    theme_minimal() +
+    xlim( 0 , 1.5 ) +
+    xlab("人口変化率") +
+    theme(
+      axis.title.y = element_blank()
+    ) -> p
+ggplotly(p)
+```
+
+## 年齢構成の変化
+
+```{r warning=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=4}
+asb2005<- age2005 %>%
+  filter(CITYNAME=="厚沢部町")
+asb2015<- age2015 %>%
+  filter(CITYNAME=="檜山振興局厚沢部町")
+# 人口変化率算出
+ch <- asb2005[,c(1:6)]
+for(i in 7:19) {
+ch[,i] <- as.numeric(as.character(asb2015[,i+4]))/as.numeric(as.character(asb2005[,i]))
+} 
+
+ch <- ch %>% 
+  rename(
+    u15=V7 ,
+  	u20=V8 ,
+    u25=V9	 ,
+  	u30=V10 ,
+    u35=V11 ,
+  	u40=V12 ,
+    u45=V13 ,
+  	u50=V14 ,
+    u55=V15 ,
+  	u60=V16 ,
+    u65=V17 ,
+  	u70=V18 ,
+    u75=V19 
+  )	 %>% 
+  select(
+    KEY_CODE , HYOSYO,HTKSYU,CITYNAME,NAME,
+    u15 ,u20 ,u25 ,u30,u35,u40,u45,u50,u55,u60,u65,u70,u75 
+  ) %>%
+  gather(key = age , value = pop ,u15,u20,u25,u30,u35,u40,u45,u50,u55,u60,u65,u70,u75)
+#
+ch$age <- as.factor(ch$age)
+```
+
+厚沢部町における2015年国勢調査時点の年齢コーホートの変化率を算出した。例えばu20（15歳以上20歳未満）の年齢階層は`ch %>% filter(age=="u20") %>%group_by( age ) %>% summarize( 変化率 = mean( pop , na.rm = TRUE) ) `の変化率となっているが、これは2005年時点のU10（5歳以上10歳未満）の人口を分母とした比率である。
+
+u25歳が大きく落ち込みu30、u35で回復している。高校卒業等による町外への流出と、30歳代でのUターンや結婚等による町外からの流入の影響と考えられる。
+
+```{r warning=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=4}
+#グラフ描画
+ch %>%
+  group_by( age ) %>%
+  summarize( 変化率 = mean( pop , na.rm = TRUE) ) %>%
+  ggplot() +
+    geom_bar( aes(x = age, y = 変化率 ) ,stat = "identity" ) +
+    coord_flip() +
+    theme_minimal() -> p
+ggplotly(p)
+```
+
+#農林業比率
+
+道南全体では厚沢部町、八雲町、せたな町、今金町などで農林業就業比率が高い。厚沢部町内では当路、館町、木間内、稲見などで農林業就業比率が7割を超える。
+
+```{r warning=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=10}
+sa %>% 
+  ggplot( ) +
+    geom_sf( aes(fill = Ａ.農業.林業/総数 )  ,size = 0.1 ) +
+    geom_sf(data=asbu , size = 0.2 , colour = "white" , fill = NA) +
+    theme_map() +
+    scale_fill_viridis(name="農林業者比率")  -> p
+ggplotly(p)
+```
+
+# 建設業比率
+
+建設業の従事比率は厚沢部町は意外にも高くはない。江差町や旧熊石町、上ノ国町などで高い比率となる。
+
+```{r warning=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=10}
+sa %>%
+  ggplot( ) +
+    geom_sf(aes(fill = Ｄ.建設業/総数 ) , size = 0.1 ) +
+    geom_sf(data=asbu , size = 0.2 , colour = "white" , fill = NA) +
+    theme_map() +
+    scale_fill_viridis(name="建設業者比率")  -> p
+ggplotly(p)
+```
+
+# 製造業比率
+
+```{r warning=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=10}
+sa %>%
+  ggplot( ) +
+    geom_sf(aes(fill =Ｅ.製造業/総数 ) , size = 0.1 ) +
+    geom_sf(data=asbu , size = 0.2 , colour = "white" , fill = NA) +
+    theme_map() +
+    scale_fill_viridis(name="製造業者比率")  -> p
+ggplotly(p)
+```
+
+## 公務部門比率
+
+```{r warning=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=10}
+sa %>%
+  ggplot( ) +
+    geom_sf(aes(fill = Ｓ.公務.他に分類されるものを除く./総数 ) ,size = 0.1 ) +
+    geom_sf(data=asbu , size = 0.2 , colour = "white" , fill = NA) +
+    theme_map() +
+    scale_fill_continuous(0,0.5) +
+    scale_fill_viridis(name="公務従事者比率")  -> p
+ggplotly(p)
+```
+
+
+
+```{r echo=FALSE,eval=FALSE}
+render("index.Rmd")
+```
+
+
+

@@ -1,0 +1,204 @@
+---
+title: "檜山地域概況"
+author: "明日晴れるかな"
+data: "2019年7月18日"
+documentclass: ltjarticle
+output: 
+  pdf_document:
+    latex_engine: lualatex
+mainfont: ipaexg.ttf
+header-includes:
+  - \usepackage[margin=1in]{geometry}
+---
+
+```{r setup, include=TRUE,echo=FALSE}
+knitr::opts_chunk$set(dev = "cairo_pdf", dev.args = list(family = "ipaexg"))
+```
+
+```{r warning=FALSE,error=FALSE,echo=FALSE}
+# パッケージ読み込み
+library(tidyverse)
+library(ggthemes)
+library(knitr)
+library(rmarkdown)
+library(viridis)
+library(sf)
+```
+
+```{r warning=FALSE,include=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=6}
+# データ読み込み
+# shapeファイル名を取得
+shp <- list.files(path="../01data/smal_area/", pattern=".*\\.shp", full.names=T) 
+# 最初のsfオブジェクト作成
+sa <- st_read(shp[1])
+# for文でshpのファイル名を順番に読み込む
+for(i in 1:length(shp)) {
+  shp_a <- st_read(shp[i])
+  sa <- rbind(sa ,shp_a)
+}
+sa$KEY_CODE <- sa$KEY_CODE %>%
+  as.character() %>%
+  as.integer() %>%
+  formatC(width=10,flag="0") %>%
+  as.character()
+sa$S_NAME <- as.character(sa$S_NAME)
+
+# 産業別就業者
+sangyo <- read.csv("../01data/sangyo/tblT000865C01.csv" , fileEncoding = "shift-jis")
+sangyo$KEY_CODE <- sangyo$KEY_CODE %>%
+  as.character() %>%
+  as.integer() %>%
+  formatC(width=10,flag="0")
+# 数値をnumericに変換
+for(i in 8:ncol(sangyo) ){
+sangyo[,i] <- as.numeric( as.character( sangyo[,i] ) )
+}
+# 産業別就業者データを結合 
+sa <- left_join(sa , sangyo ,by="KEY_CODE")
+
+# 国勢調査データ読み込み
+age2000<-read.csv("../01data/kokusei_jinko/jinko2000.csv" , fileEncoding = "shift-jis")
+age2015<-read.csv("../01data/kokusei_jinko/jinko2015.csv" , fileEncoding = "shift-jis")
+#列名を変更して絞り込み
+age2000a<- age2000 %>%
+  rename(人口00年=総数.年齢.不詳.含む,
+  	u15_00=総数１５歳未満,o15u65_00=総数１５.６４歳,
+  	o65_00=総数６５歳以上,o65u75_00=総数６５.７４歳,
+  	o75_00=総数７５歳以上)	%>%
+	select(KEY_CODE,NAME,人口00年,u15_00,o15u65_00,o65_00,o65u75_00,o75_00)	
+#
+for(i in 3:ncol(age2000a) ){
+age2000a[,i] <- as.numeric( as.character( age2000a[,i] ) )
+}
+#
+age2015a <- age2015 %>% 
+  rename(人口15年=総数.年齢.不詳.含む,
+  	u15_15=X.総数１５歳未満,o15u65_15=X.総数１５.６４歳,
+  	o65_15=X.総数６５歳以上,o75_15=X.総数７５歳以上)	%>%
+	select(KEY_CODE,NAME,人口15年,u15_15,o15u65_15,o65_15,o75_15)	
+#
+for(i in 3:ncol(age2015a)){
+age2015a[,i]<- as.numeric( as.character( age2015a[,i] ) )
+}
+# 年齢データ結合
+age2000a$NAME <- as.character(age2000a$NAME)
+age2015a$NAME <- as.character(age2015a$NAME)
+age2000a$KEY_CODE <- age2000a$KEY_CODE %>%
+  as.integer() %>%
+  formatC(width=10,flag="0") %>%
+  as.character()
+age2015a$KEY_CODE <- age2015a$KEY_CODE %>%
+  as.integer() %>%
+  formatC(width=10,flag="0") %>%
+  as.character()
+
+# 地図データと結合
+sa <- left_join( sa , age2000a , by = "KEY_CODE" ) 
+sa <- left_join( sa , age2015a , by = "KEY_CODE" ) 
+
+# 厚沢部エリアを抽出
+asb <- sa %>% filter(CITY_NAME == "厚沢部町")
+asbu <- st_union(asb)
+```
+
+# 人口構成
+
+## 人口変化
+```{r warning=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=10}
+sa %>%
+  ggplot() +
+    geom_sf( aes(fill = 人口15年/人口00年 )  , size = 0.1 ) +
+    geom_sf(data=asbu , size = 0.2 , colour = "white" , fill = NA) +
+    theme_map() +
+    scale_fill_viridis(,name = "人口変化率" ,limits = c(0.2 , 1.5) ) 
+```
+
+```{r warning=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=4}
+sa %>%
+  ggplot() +
+    geom_histogram( aes( 人口15年/人口00年) ) +
+    theme_minimal() +
+    xlim( 0 , 1.5 ) +
+    xlab("人口変化率") +
+    theme(
+      axis.title.y = element_blank()
+    )
+
+
+## 人口密度
+```{r warning=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=10}
+sa %>%
+  ggplot() +
+    geom_sf( aes(fill = JINKO/AREA*1000000) , size = 0.1 ) +
+    geom_sf(data=asbu , size = 0.2 , colour = "white" , fill = NA) +
+    theme_map() +
+    scale_fill_viridis()
+```
+
+# 人口構造の分析
+
+## 人口密度
+```{r warning=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=10}
+sa %>%
+  ggplot() +
+    geom_sf( aes(fill = log(JINKO/AREA*1000000) )  ,
+      size = 0.1 ) +
+    geom_sf(data=asbu , size = 0.2 , colour = "white" , fill = NA) +
+    theme_map() +
+    scale_fill_viridis()
+```
+
+# 就労人口構造の分析
+
+## 農林業比率
+```{r warning=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=10}
+sa %>% 
+  ggplot( ) +
+    geom_sf( aes(fill = Ａ.農業.林業/総数 )  ,size = 0.1 ) +
+    geom_sf(data=asbu , size = 0.2 , colour = "white" , fill = NA) +
+    theme_map() +
+    scale_fill_viridis(name="農林業者比率")  
+
+```
+
+### 建設業比率
+```{r warning=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=10}
+sa %>%
+  ggplot( ) +
+    geom_sf(aes(fill = Ｄ.建設業/総数 ) , size = 0.1 ) +
+    geom_sf(data=asbu , size = 0.2 , colour = "white" , fill = NA) +
+    theme_map() +
+    scale_fill_viridis(name="建設業者比率")
+```
+
+## 製造業比率
+
+```{r warning=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=10}
+sa %>%
+  ggplot( ) +
+    geom_sf(aes(fill =Ｅ.製造業/総数 ) , size = 0.1 ) +
+    geom_sf(data=asbu , size = 0.2 , colour = "white" , fill = NA) +
+    theme_map() +
+    scale_fill_viridis(name="製造業者比率")
+```
+
+## 公務部門比率
+
+```{r warning=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=10}
+sa %>%
+  ggplot( ) +
+    geom_sf(aes(fill = Ｓ.公務.他に分類されるものを除く./総数 ) ,size = 0.1 ) +
+    geom_sf(data=asbu , size = 0.2 , colour = "white" , fill = NA) +
+    theme_map() +
+    scale_fill_continuous(0,0.5) +
+    scale_fill_viridis(name="公務従事者比率")
+```
+
+
+
+```{r echo=FALSE,eval=FALSE}
+render("檜山地域分析.Rmd")
+```
+
+
+
