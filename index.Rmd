@@ -6,8 +6,11 @@ documentclass: ltjarticle
 output: html_document
 ---
 
+```{r setup, include = FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
 
-```{r warning=FALSE,error=FALSE,echo=FALSE}
+```{r inisitalize , include = FALSE}
 # パッケージ読み込み
 library(tidyverse)
 library(ggthemes)
@@ -18,7 +21,7 @@ library(sf)
 library(plotly)
 ```
 
-```{r warning=FALSE,include=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=6}
+```{r include=FALSE}
 # データ読み込み
 # shapeファイル名を取得
 shp <- list.files(path="../01data/smal_area/", pattern=".*\\.shp", full.names=T) 
@@ -199,7 +202,7 @@ ch %>%
 ggplotly(p)
 ```
 
-#農林業比率
+# 農林業比率
 
 道南全体では厚沢部町、八雲町、せたな町、今金町などで農林業就業比率が高い。厚沢部町内では当路、館町、木間内、稲見などで農林業就業比率が7割を超える。
 
@@ -226,32 +229,6 @@ sa %>%
     scale_fill_viridis(name="建設業者比率")  -> p
 ggplotly(p)
 ```
-
-# 製造業比率
-
-```{r warning=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=10}
-sa %>%
-  ggplot( ) +
-    geom_sf(aes(fill =Ｅ.製造業/総数 ) , size = 0.1 ) +
-    geom_sf(data=asbu , size = 0.2 , colour = "white" , fill = NA) +
-    theme_map() +
-    scale_fill_viridis(name="製造業者比率")  -> p
-ggplotly(p)
-```
-
-## 公務部門比率
-
-```{r warning=FALSE,error=FALSE,echo=FALSE,message =FALSE,fig.width=10, fig.height=10}
-sa %>%
-  ggplot( ) +
-    geom_sf(aes(fill = Ｓ.公務.他に分類されるものを除く./総数 ) ,size = 0.1 ) +
-    geom_sf(data=asbu , size = 0.2 , colour = "white" , fill = NA) +
-    theme_map() +
-    scale_fill_continuous(0,0.5) +
-    scale_fill_viridis(name="公務従事者比率")  -> p
-ggplotly(p)
-```
-
 
 
 ```{r echo=FALSE,eval=FALSE}
